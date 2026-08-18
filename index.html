@@ -16,7 +16,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #0c0a08;
+            background-color: #080705;
             font-family: 'Courier New', Courier, monospace;
             touch-action: none;
         }
@@ -48,11 +48,11 @@
             font-weight: bold;
         }
         .stat-card {
-            background: rgba(18, 14, 10, 0.88);
+            background: rgba(14, 11, 8, 0.90);
             padding: 8px 14px;
             border: 2px solid #5a4732;
             border-radius: 4px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8);
         }
         .health-bar {
             width: 130px;
@@ -81,7 +81,7 @@
             position: absolute;
             top: 65%; left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             border: 1px solid #d1a868;
             padding: 6px 16px;
             font-size: 13px;
@@ -117,7 +117,7 @@
         #hitmarker::before { top: 9px; left: 0; width: 20px; height: 2px; transform: rotate(45deg); }
         #hitmarker::after { top: 9px; left: 0; width: 20px; height: 2px; transform: rotate(-45deg); }
 
-        /* --- REVAMPED ERGONOMIC MOBILE CONTROLS (THUMB-ARC LAYOUT) --- */
+        /* --- ERGONOMIC MOBILE CONTROLS (THUMB-ARC LAYOUT) --- */
         #mobile-layer {
             position: absolute;
             top: 0; left: 0;
@@ -173,7 +173,6 @@
             transform: scale(0.94);
         }
         
-        /* Thumb-Arc Positions */
         #btn-fire {
             bottom: 25px; right: 25px;
             width: 82px; height: 82px;
@@ -309,10 +308,10 @@
     <div id="start-modal" class="full-overlay">
         <h1>1917: TRENCH DEFENSE</h1>
         <p>
-            Hold the front line against incoming stormtrooper waves.<br><br>
-            • <strong>Heavy Machine Gun:</strong> Mount the armored Maxim MG in the trench center for continuous fire and 85% armor protection.<br>
-            • <strong>Artillery Strike:</strong> Tap BARRAGE / press [F] to decimate charging lines.<br>
-            • <strong>Cover:</strong> Crouch below the sandbags to avoid rifle bullets.<br><br>
+            Hold the frontline against incoming assault waves.<br><br>
+            • <strong>Heavy Machine Gun:</strong> Mount the armored Maxim MG for high-rate continuous fire and 85% ballistic armor shield protection.<br>
+            • <strong>Artillery Strike:</strong> Tap BARRAGE / press [F] to shell charging enemy lines.<br>
+            • <strong>Cover:</strong> Crouch below the sandbags to avoid all incoming rifle fire.<br><br>
             <strong>Desktop:</strong> WASD = Move | Mouse = Aim | LMB = Fire | E = Mount MG | RMB = ADS | C = Cover | R = Reload | F = Artillery.<br>
             <strong>Mobile:</strong> Left Stick = Move | Drag Screen = Aim | Ergonomic Radial Buttons.
         </p>
@@ -424,7 +423,7 @@
                 const bufferSize = this.ctx.sampleRate * 1.5;
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
-                for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.35));
+                for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.35));
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = buffer;
                 const filter = this.ctx.createBiquadFilter();
@@ -468,7 +467,7 @@
         const PARAPET_EYE_LEVEL = 0.75;
         let rifleGroup, boltHandleMesh, muzzleFlashMesh;
         let mountedMGGroup, mgFlashMesh;
-        let enemies = [], hitboxList = [], deadBodies = [], bloodParticles = [];
+        let enemies = [], hitboxList = [], deadBodies = [], bloodParticles = [], dustParticles = [];
         let currentWave = 1, waveActive = false;
 
         const keys = {};
@@ -480,39 +479,68 @@
         const hitmarker = document.getElementById('hitmarker');
         const mgHint = document.getElementById('mg-hint');
 
-        /* --- PROCEDURAL TEXTURES --- */
+        /* --- PROCEDURAL HIGH-FIDELITY TEXTURES --- */
         function createWoodTexture() {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#402a18'; ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 256; i += 2) {
+                ctx.fillStyle = `rgba(30, 18, 10, ${0.15 + Math.sin(i * 0.15) * 0.1})`;
+                ctx.fillRect(0, i, 256, 2);
+            }
+            // Weathered knots & nails
+            for (let j = 0; j < 8; j++) {
+                ctx.fillStyle = '#1e140d';
+                ctx.beginPath();
+                ctx.arc(30 + Math.random() * 190, 20 + j * 30, 4 + Math.random() * 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        function createBurlapTexture() {
             const c = document.createElement('canvas');
             c.width = 128; c.height = 128;
             const ctx = c.getContext('2d');
-            ctx.fillStyle = '#4a2f1b'; ctx.fillRect(0, 0, 128, 128);
-            ctx.fillStyle = '#341f11';
-            for (let i = 0; i < 12; i++) ctx.fillRect(0, i * 11, 128, 3 + Math.random() * 3);
-            return new THREE.CanvasTexture(c);
+            ctx.fillStyle = '#6b5c43'; ctx.fillRect(0, 0, 128, 128);
+            ctx.fillStyle = '#554832';
+            for (let x = 0; x < 128; x += 4) {
+                for (let y = 0; y < 128; y += 4) {
+                    if ((x + y) % 8 === 0) ctx.fillRect(x, y, 2, 2);
+                }
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
         }
 
         function createMudTexture() {
             const c = document.createElement('canvas');
             c.width = 256; c.height = 256;
             const ctx = c.getContext('2d');
-            ctx.fillStyle = '#2f2419'; ctx.fillRect(0, 0, 256, 256);
-            ctx.fillStyle = '#1c150e';
-            for (let i = 0; i < 400; i++) {
+            ctx.fillStyle = '#261c14'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#140e0a';
+            for (let i = 0; i < 500; i++) {
                 ctx.beginPath();
-                ctx.arc(Math.random()*256, Math.random()*256, Math.random()*6, 0, Math.PI*2);
+                ctx.arc(Math.random() * 256, Math.random() * 256, Math.random() * 5, 0, Math.PI * 2);
                 ctx.fill();
             }
             const tex = new THREE.CanvasTexture(c);
             tex.wrapS = THREE.RepeatWrapping;
             tex.wrapT = THREE.RepeatWrapping;
-            tex.repeat.set(12, 12);
+            tex.repeat.set(16, 16);
             return tex;
         }
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x383228);
-            scene.fog = new THREE.FogExp2(0x383228, 0.01);
+            scene.background = new THREE.Color(0x28231c);
+            scene.fog = new THREE.FogExp2(0x28231c, 0.012);
 
             camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 250);
             camera.rotation.order = 'YXZ';
@@ -521,114 +549,210 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-            const hemiLight = new THREE.HemisphereLight(0xccbba2, 0x221a14, 0.75);
+            // Dramatic WW1 Atmospheric Lighting
+            const hemiLight = new THREE.HemisphereLight(0xb8aa92, 0x18120c, 0.7);
             scene.add(hemiLight);
 
-            const sunLight = new THREE.DirectionalLight(0xffeedd, 0.85);
-            sunLight.position.set(-30, 45, -20);
+            const sunLight = new THREE.DirectionalLight(0xf2e0cb, 0.95);
+            sunLight.position.set(-25, 45, -20);
             sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            sunLight.shadow.bias = -0.001;
             scene.add(sunLight);
 
             buildSunkenTrenchWorld();
             buildDetailedRifle();
             buildArmoredMachineGun();
+            setupDustParticles();
             setupControls();
 
             window.addEventListener('resize', onResize);
         }
 
-        /* --- 3D SUNKEN TRENCH --- */
+        /* --- 3D SUNKEN TRENCH & NO MAN'S LAND --- */
         function buildSunkenTrenchWorld() {
             const mudTex = createMudTexture();
             const woodTex = createWoodTexture();
+            const burlapTex = createBurlapTexture();
 
             const mudMat = new THREE.MeshLambertMaterial({ map: mudTex });
             const woodMat = new THREE.MeshLambertMaterial({ map: woodTex });
-            const sandbagMat = new THREE.MeshLambertMaterial({ color: 0x7a6b52 });
+            const sandbagMat = new THREE.MeshLambertMaterial({ map: burlapTex });
+            const ironMat = new THREE.MeshLambertMaterial({ color: 0x3d3935 });
 
-            // No Man's Land
-            const noMansLandGeo = new THREE.PlaneGeometry(160, 120, 20, 20);
+            // 1. No Man's Land (Ground level at Y = 0)
+            const noMansLandGeo = new THREE.PlaneGeometry(160, 120, 32, 32);
             noMansLandGeo.rotateX(-Math.PI / 2);
             const noMansLand = new THREE.Mesh(noMansLandGeo, mudMat);
             noMansLand.position.set(0, 0, -42);
             noMansLand.receiveShadow = true;
             scene.add(noMansLand);
 
-            // Sunken Trench Floor
-            const floorGeo = new THREE.PlaneGeometry(140, 4);
+            // 2. Realistic Trench Floor (Carved down to Y = -0.55)
+            const floorGeo = new THREE.PlaneGeometry(140, 3.2);
             floorGeo.rotateX(-Math.PI / 2);
             const trenchFloor = new THREE.Mesh(floorGeo, mudMat);
-            trenchFloor.position.set(0, -2.2, 20);
+            trenchFloor.position.set(0, -0.55, 20.2);
+            trenchFloor.receiveShadow = true;
             scene.add(trenchFloor);
 
-            // Boardwalks
-            const boardGeo = new THREE.BoxGeometry(1.2, 0.08, 0.25);
-            for (let x = -65; x <= 65; x += 0.35) {
+            // Wooden Duckboard Walkways directly under feet
+            const boardGeo = new THREE.BoxGeometry(1.2, 0.06, 0.22);
+            for (let x = -65; x <= 65; x += 0.3) {
                 const board = new THREE.Mesh(boardGeo, woodMat);
-                board.position.set(x, -2.15, 20);
+                board.position.set(x, -0.52, 20.2);
+                board.receiveShadow = true;
                 scene.add(board);
             }
 
-            // Firing step
-            const firingStep = new THREE.Mesh(new THREE.BoxGeometry(140, 0.9, 1.2), woodMat);
-            firingStep.position.set(0, -1.75, 18.9);
+            // Firing Step (Raised platform at Y = -0.15)
+            const stepGeo = new THREE.BoxGeometry(140, 0.4, 1.1);
+            const firingStep = new THREE.Mesh(stepGeo, woodMat);
+            firingStep.position.set(0, -0.35, 19.1);
+            firingStep.receiveShadow = true;
             scene.add(firingStep);
 
-            // Retaining Walls
-            const frontWall = new THREE.Mesh(new THREE.BoxGeometry(140, 2.4, 0.4), woodMat);
-            frontWall.position.set(0, -1.0, 18.2);
+            // Front Retaining Wall with Corrugated Iron Panels
+            const frontWall = new THREE.Mesh(new THREE.BoxGeometry(140, 1.6, 0.3), woodMat);
+            frontWall.position.set(0, 0.1, 18.3);
+            frontWall.receiveShadow = true;
             scene.add(frontWall);
 
-            const backWall = new THREE.Mesh(new THREE.BoxGeometry(140, 2.4, 0.4), woodMat);
-            backWall.position.set(0, -1.0, 21.8);
+            // Corrugated iron plates along the revetment
+            for (let x = -60; x <= 60; x += 4.0) {
+                const ironPlate = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 0.04), ironMat);
+                ironPlate.position.set(x, 0.15, 18.46);
+                scene.add(ironPlate);
+            }
+
+            // Back Retaining Wall
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(140, 1.6, 0.3), woodMat);
+            backWall.position.set(0, 0.1, 21.8);
+            backWall.receiveShadow = true;
             scene.add(backWall);
 
-            // Sandbag Parapet
-            const bagGeo = new THREE.BoxGeometry(1.4, 0.38, 0.7);
+            // Timber upright posts along the walls
+            const postGeo = new THREE.CylinderGeometry(0.08, 0.09, 1.8, 6);
+            for (let x = -60; x <= 60; x += 3.2) {
+                const p1 = new THREE.Mesh(postGeo, woodMat);
+                p1.position.set(x, 0.15, 18.48);
+                scene.add(p1);
+
+                const p2 = new THREE.Mesh(postGeo, woodMat);
+                p2.position.set(x, 0.15, 21.65);
+                scene.add(p2);
+            }
+
+            // 3. Detailed Sandbag Parapet (Layered Y = 0.55 to 0.85)
+            const bagGeo = new THREE.BoxGeometry(1.35, 0.28, 0.65);
             for (let row = 0; row < 2; row++) {
-                for (let x = -65; x <= 65; x += 1.3) {
-                    if (Math.abs(x) < 1.4 && row === 1) continue;
+                for (let x = -65; x <= 65; x += 1.25) {
+                    if (Math.abs(x) < 1.6 && row === 1) continue; // Gap for the machine gun
                     const bag = new THREE.Mesh(bagGeo, sandbagMat);
-                    bag.position.set(x + (row % 2 ? 0.6 : 0), 0.18 + row * 0.35, 18.1);
-                    bag.rotation.y = (Math.random() - 0.5) * 0.15;
+                    bag.position.set(x + (row % 2 ? 0.55 : 0), 0.56 + row * 0.26, 18.25);
+                    bag.rotation.y = (Math.random() - 0.5) * 0.12;
+                    bag.castShadow = true;
+                    bag.receiveShadow = true;
                     scene.add(bag);
                 }
             }
 
-            // Craters & Barbed Wire
-            for (let i = 0; i < 8; i++) {
-                createCrater((Math.random() - 0.5) * 90, -15 - Math.random() * 50);
+            // 4. No Man's Land Features: Craters, Puddles, Barbed Wire, & Burnt Trees
+            for (let i = 0; i < 9; i++) {
+                createCrater((Math.random() - 0.5) * 90, -12 - Math.random() * 50);
             }
-            for (let x = -50; x <= 50; x += 8) {
-                createBarbedWirePost(x, 8 + Math.random() * 3);
+            for (let x = -55; x <= 55; x += 7) {
+                createConcertinaWire(x, 6 + Math.random() * 4);
+                createConcertinaWire(x, -18 + Math.random() * 4);
             }
+            for (let j = 0; j < 14; j++) {
+                createBurntTree((Math.random() - 0.5) * 100, -10 - Math.random() * 55);
+            }
+
+            // Ammo Crates stacked in trench
+            createAmmoCrateStack(-6, -0.2, 21.0);
+            createAmmoCrateStack(12, -0.2, 21.0);
         }
 
         function createCrater(x, z) {
+            // Dark outer rim
             const crater = new THREE.Mesh(
-                new THREE.RingGeometry(1.5, 4.5, 12).rotateX(-Math.PI / 2),
-                new THREE.MeshLambertMaterial({ color: 0x18120b, side: THREE.DoubleSide })
+                new THREE.RingGeometry(1.4, 4.2, 12).rotateX(-Math.PI / 2),
+                new THREE.MeshLambertMaterial({ color: 0x120c08, side: THREE.DoubleSide })
             );
-            crater.position.set(x, 0.03, z);
+            crater.position.set(x, 0.02, z);
             scene.add(crater);
+
+            // Muddy reflective water pool at crater base
+            const puddle = new THREE.Mesh(
+                new THREE.CircleGeometry(1.3, 10).rotateX(-Math.PI / 2),
+                new THREE.MeshStandardMaterial({ color: 0x101412, roughness: 0.1, metalness: 0.8 })
+            );
+            puddle.position.set(x, 0.025, z);
+            scene.add(puddle);
         }
 
-        function createBarbedWirePost(x, z) {
+        function createConcertinaWire(x, z) {
+            const wireGroup = new THREE.Group();
             const post = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.06, 0.06, 2.2, 5),
-                new THREE.MeshLambertMaterial({ color: 0x2b1e15 })
+                new THREE.CylinderGeometry(0.05, 0.05, 1.8, 5),
+                new THREE.MeshLambertMaterial({ color: 0x241810 })
             );
-            post.position.set(x, 1.0, z);
-            post.rotation.z = (Math.random() - 0.5) * 0.3;
-            scene.add(post);
+            post.position.set(0, 0.9, 0);
+            wireGroup.add(post);
 
-            const wire = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.012, 0.012, 7.5).rotateZ(Math.PI / 2),
-                new THREE.MeshBasicMaterial({ color: 0x111 })
+            // Helical wire coils
+            const wireMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+            for (let k = 0; k < 3; k++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.015, 4, 12), wireMat);
+                ring.position.set(0, 0.4 + k * 0.45, 0);
+                ring.rotation.y = k * 0.6;
+                wireGroup.add(ring);
+            }
+            wireGroup.position.set(x, 0, z);
+            scene.add(wireGroup);
+        }
+
+        function createBurntTree(x, z) {
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.28, 3.5 + Math.random() * 2, 5),
+                new THREE.MeshLambertMaterial({ color: 0x17120e })
             );
-            wire.position.set(x, 1.1, z);
-            scene.add(wire);
+            trunk.position.set(x, 1.8, z);
+            trunk.rotation.x = (Math.random() - 0.5) * 0.3;
+            trunk.rotation.z = (Math.random() - 0.5) * 0.3;
+            scene.add(trunk);
+        }
+
+        function createAmmoCrateStack(x, y, z) {
+            const crateMat = new THREE.MeshLambertMaterial({ color: 0x38281a });
+            const crateGeo = new THREE.BoxGeometry(0.7, 0.35, 0.45);
+            const c1 = new THREE.Mesh(crateGeo, crateMat);
+            c1.position.set(x, y, z);
+            scene.add(c1);
+            const c2 = new THREE.Mesh(crateGeo, crateMat);
+            c2.position.set(x + 0.1, y + 0.35, z);
+            c2.rotation.y = 0.2;
+            scene.add(c2);
+        }
+
+        function setupDustParticles() {
+            const count = 75;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                pos[i * 3] = (Math.random() - 0.5) * 120;
+                pos[i * 3 + 1] = Math.random() * 6;
+                pos[i * 3 + 2] = -50 + Math.random() * 70;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ color: 0xc4b299, size: 0.12, transparent: true, opacity: 0.5 });
+            const dustSystem = new THREE.Points(geo, mat);
+            scene.add(dustSystem);
+            dustParticles.push(dustSystem);
         }
 
         /* --- DETAILED BOLT-ACTION RIFLE --- */
@@ -684,72 +808,86 @@
             scene.add(camera);
         }
 
-        /* --- ARMORED HEAVY MACHINE GUN --- */
+        /* --- REDESIGNED WIDE-ANGLE ARMORED MACHINE GUN --- */
         function buildArmoredMachineGun() {
             mountedMGGroup = new THREE.Group();
             const gunMetal = new THREE.MeshLambertMaterial({ color: 0x1f2326 });
-            const armorMetal = new THREE.MeshLambertMaterial({ color: 0x3d4347 });
+            const armorMetal = new THREE.MeshLambertMaterial({ color: 0x3c4246 });
 
-            // Tripod Mount
-            const tripodLegGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.2);
+            // 1. Reinforced Timber Ledge Stand
+            const ledgeGeo = new THREE.BoxGeometry(1.6, 0.35, 0.8);
+            const ledge = new THREE.Mesh(ledgeGeo, new THREE.MeshLambertMaterial({ color: 0x362315 }));
+            ledge.position.set(0, -0.18, 0);
+            mountedMGGroup.add(ledge);
+
+            // 2. Heavy Steel Tripod Base
+            const tripodLegGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.9);
             const leg1 = new THREE.Mesh(tripodLegGeo, gunMetal);
-            leg1.position.set(0, -0.4, -0.4); leg1.rotation.x = 0.6;
+            leg1.position.set(0, -0.05, -0.3); leg1.rotation.x = 0.5;
             mountedMGGroup.add(leg1);
 
             const leg2 = new THREE.Mesh(tripodLegGeo, gunMetal);
-            leg2.position.set(-0.35, -0.4, 0.3); leg2.rotation.z = 0.5;
+            leg2.position.set(-0.35, -0.05, 0.2); leg2.rotation.z = 0.45;
             mountedMGGroup.add(leg2);
 
             const leg3 = new THREE.Mesh(tripodLegGeo, gunMetal);
-            leg3.position.set(0.35, -0.4, 0.3); leg3.rotation.z = -0.5;
+            leg3.position.set(0.35, -0.05, 0.2); leg3.rotation.z = -0.45;
             mountedMGGroup.add(leg3);
 
-            // MG Body & Water Jacket
-            const mgBody = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.6), gunMetal);
-            mgBody.position.set(0, 0.25, 0);
+            // 3. Maxim / Vickers Receiver & Water Jacket
+            const mgBody = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.65), gunMetal);
+            mgBody.position.set(0, 0.28, 0);
             mountedMGGroup.add(mgBody);
 
-            const jacket = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.9, 12), gunMetal);
+            const jacket = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.95, 12), gunMetal);
             jacket.rotateX(Math.PI / 2);
-            jacket.position.set(0, 0.25, -0.65);
+            jacket.position.set(0, 0.28, -0.68);
             mountedMGGroup.add(jacket);
 
-            const flashCone = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 8), gunMetal);
+            const flashCone = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 8), gunMetal);
             flashCone.rotateX(-Math.PI / 2);
-            flashCone.position.set(0, 0.25, -1.15);
+            flashCone.position.set(0, 0.28, -1.22);
             mountedMGGroup.add(flashCone);
 
-            // Armored Gun Shield (Optimized for full left/right sightline clearance)
-            const leftShield = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.6, 0.03), armorMetal);
-            leftShield.position.set(-0.30, 0.32, -0.42);
-            mountedMGGroup.add(leftShield);
+            // 4. WIDE-VIEW ARMOR SHIELD (Angled Wings with Wide Panoramic Slit)
+            const leftWing = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.68, 0.04), armorMetal);
+            leftWing.position.set(-0.48, 0.32, -0.42);
+            leftWing.rotation.y = 0.25;
+            mountedMGGroup.add(leftWing);
 
-            const rightShield = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.6, 0.03), armorMetal);
-            rightShield.position.set(0.30, 0.32, -0.42);
-            mountedMGGroup.add(rightShield);
+            const rightWing = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.68, 0.04), armorMetal);
+            rightWing.position.set(0.48, 0.32, -0.42);
+            rightWing.rotation.y = -0.25;
+            mountedMGGroup.add(rightWing);
 
-            const topShield = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.03), armorMetal);
-            topShield.position.set(0, 0.54, -0.42);
-            mountedMGGroup.add(topShield);
+            const topBrow = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.18, 0.04), armorMetal);
+            topBrow.position.set(0, 0.58, -0.44);
+            mountedMGGroup.add(topBrow);
 
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.03), gunMetal);
-            grip.position.set(0, 0.25, 0.34);
+            const lowerPlate = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.22, 0.04), armorMetal);
+            lowerPlate.position.set(0, 0.06, -0.44);
+            mountedMGGroup.add(lowerPlate);
+
+            // 5. Spade Grips & Green Ammo Box
+            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.03), gunMetal);
+            grip.position.set(0, 0.28, 0.36);
             mountedMGGroup.add(grip);
 
-            const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.28), new THREE.MeshLambertMaterial({ color: 0x2b3829 }));
-            ammoBox.position.set(-0.22, 0.15, -0.05);
+            const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.24, 0.32), new THREE.MeshLambertMaterial({ color: 0x2e3b2b }));
+            ammoBox.position.set(-0.25, 0.18, -0.05);
             mountedMGGroup.add(ammoBox);
 
-            mgFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffaa22 }));
-            mgFlashMesh.position.set(0, 0.25, -1.25);
+            mgFlashMesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffaa22 }));
+            mgFlashMesh.position.set(0, 0.28, -1.32);
             mgFlashMesh.visible = false;
             mountedMGGroup.add(mgFlashMesh);
 
-            mountedMGGroup.position.set(0, 0.45, 18.5);
+            // Mounted properly on the firing parapet shelf
+            mountedMGGroup.position.set(0, 0.72, 18.5);
             scene.add(mountedMGGroup);
         }
 
-        /* --- REALISTIC SOLDIER CREATION (ANATOMICAL & DETAILED) --- */
+        /* --- REALISTIC SOLDIER CREATION --- */
         function createRealisticSoldierMesh() {
             const soldier = new THREE.Group();
 
@@ -761,13 +899,11 @@
             const gunWoodMat = new THREE.MeshLambertMaterial({ color: 0x422616 });
             const gunMetalMat = new THREE.MeshLambertMaterial({ color: 0x1b1b1b });
 
-            // 1. Torso (Sculpted Tunic)
-            const torsoGeo = new THREE.CylinderGeometry(0.24, 0.20, 0.65, 8);
-            const torso = new THREE.Mesh(torsoGeo, tunicMat);
+            // Torso
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.20, 0.65, 8), tunicMat);
             torso.position.y = 0.95;
             soldier.add(torso);
 
-            // Leather Y-Straps & Ammo Pouches
             const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.08, 8), leatherMat);
             belt.position.y = 0.7;
             soldier.add(belt);
@@ -780,7 +916,7 @@
             pouchR.position.set(0.12, 0.7, 0.18);
             soldier.add(pouchR);
 
-            // 2. Head & Distinctive WW1 Stahlhelm
+            // Head & Stahlhelm
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), skinMat);
             head.position.y = 1.42;
             soldier.add(head);
@@ -794,8 +930,7 @@
             stahlhelmBrim.rotation.x = 0.1;
             soldier.add(stahlhelmBrim);
 
-            // 3. Articulated Limbs for Dynamic Running & Ragdoll Falling
-            // Left Leg
+            // Limbs
             const legGeo = new THREE.CylinderGeometry(0.08, 0.065, 0.65, 6);
             const leftLeg = new THREE.Mesh(legGeo, trousersMat);
             leftLeg.position.set(-0.12, 0.35, 0);
@@ -805,7 +940,6 @@
             bootL.position.set(-0.12, 0.06, 0.03);
             soldier.add(bootL);
 
-            // Right Leg
             const rightLeg = new THREE.Mesh(legGeo, trousersMat);
             rightLeg.position.set(0.12, 0.35, 0);
             soldier.add(rightLeg);
@@ -814,7 +948,6 @@
             bootR.position.set(0.12, 0.06, 0.03);
             soldier.add(bootR);
 
-            // Arms & Rifle
             const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.55, 6);
             const leftArm = new THREE.Mesh(armGeo, tunicMat);
             leftArm.position.set(-0.28, 1.05, 0.08);
@@ -828,7 +961,7 @@
             rightArm.rotation.z = 0.2;
             soldier.add(rightArm);
 
-            // Mauser 98 Rifle with Bayonet
+            // Mauser 98 Rifle
             const rifleMesh = new THREE.Group();
             const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 1.0), gunWoodMat);
             const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1.1, 6), gunMetalMat);
@@ -855,12 +988,11 @@
             };
         }
 
-        /* --- ENEMY SPAWN & HITBOXES --- */
+        /* --- ENEMY SPAWN & SOLID HITBOXES --- */
         function spawnEnemy() {
             const soldierData = createRealisticSoldierMesh();
             const enemyGroup = soldierData.group;
 
-            // Generous Hitbox Proxy for 100% Reliable Hit Registration
             const hitboxGeo = new THREE.CylinderGeometry(0.7, 0.7, 2.2, 8);
             const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
             const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
@@ -878,7 +1010,6 @@
                 health: 100,
                 isDead: false,
                 fallProgress: 0,
-                fallVelocity: 0,
                 speed: 1.35 + Math.random() * 0.35,
                 shootTimer: 3.0 + Math.random() * 3.5,
                 animSeed: Math.random() * 10
@@ -907,22 +1038,17 @@
             }, currentWave === 1 ? 2200 : 1600);
         }
 
-        /* --- REALISTIC DEATH & BLEEDING SYSTEM --- */
+        /* --- REALISTIC DEATH & BLEEDING --- */
         function killEnemy(enemy, hitPoint) {
             if (enemy.isDead) return;
             enemy.isDead = true;
 
-            // Remove from active hitboxes so corpse doesn't block shots
             const hbIndex = hitboxList.indexOf(enemy.hitbox);
             if (hbIndex !== -1) hitboxList.splice(hbIndex, 1);
 
-            // Blood Splatter Burst Particles
             spawnBloodSplatter(hitPoint || enemy.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
-
-            // Spawn Expanding Blood Pool Decal on the Mud Ground
             spawnBloodPoolDecal(enemy.mesh.position.x, enemy.mesh.position.z);
 
-            // Add to dead bodies array for dynamic collapse animation
             deadBodies.push(enemy);
 
             const enemyIndex = enemies.indexOf(enemy);
@@ -969,7 +1095,6 @@
             bloodPool.position.set(x, 0.02, z);
             scene.add(bloodPool);
 
-            // Expanding pool animation
             let scale = 0.1;
             const grow = setInterval(() => {
                 scale += 0.08;
@@ -1045,7 +1170,6 @@
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-            // Update world matrices for 100% accurate hit detection in all directions
             for (let i = 0; i < hitboxList.length; i++) hitboxList[i].updateMatrixWorld();
 
             const hits = raycaster.intersectObjects(hitboxList, false);
@@ -1076,7 +1200,7 @@
                 if (distToMG > 4.5) player.pos.set(0, 1.15, 19.5);
                 player.isMountedMG = true;
                 rifleGroup.visible = false;
-                player.pos.set(0, 0.95, 18.9);
+                player.pos.set(0, 1.05, 19.0);
                 document.getElementById('btn-mg').innerHTML = "EXIT<br>MG [E]";
                 document.getElementById('btn-mg').style.background = "rgba(120, 30, 30, 0.92)";
             } else {
@@ -1135,14 +1259,14 @@
             }
         }
 
-        /* --- ENEMY SHOOTING & HIT CHECKS --- */
+        /* --- ENEMY SHOOTING & COVER LOGIC --- */
         function enemyFireAtPlayer(enemy) {
             if (enemy.isDead) return;
             audio.playRifleFire();
 
             if (!player.isMountedMG && player.pos.y < PARAPET_EYE_LEVEL) {
                 audio.playSandbagHit();
-                createHitSparks(new THREE.Vector3(player.pos.x + (Math.random()-0.5)*1.5, 0.5, 18.1), 0xcaa272);
+                createHitSparks(new THREE.Vector3(player.pos.x + (Math.random()-0.5)*1.5, 0.5, 18.25), 0xcaa272);
                 return;
             }
 
@@ -1350,7 +1474,7 @@
             window.addEventListener('touchend', clearLook);
             window.addEventListener('touchcancel', clearLook);
 
-            // Revamped Mobile Action Buttons
+            // Mobile Action Buttons
             const btnFire = document.getElementById('btn-fire');
             btnFire.addEventListener('touchstart', (e) => {
                 e.preventDefault();
@@ -1386,7 +1510,6 @@
             const dt = Math.min(clock.getDelta(), 0.1);
 
             if (isGameRunning) {
-                // Machine Gun Auto-Fire Cycle
                 if (player.isMountedMG && player.isFiringAuto) {
                     fireMountedMG();
                 }
@@ -1396,7 +1519,7 @@
                     updateHUD();
                 }
 
-                // Player Movement
+                // Player Movement within the trench boardwalk bounds
                 if (!player.isMountedMG) {
                     let mx = 0, mz = 0;
                     if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
@@ -1421,7 +1544,8 @@
                         player.pos.z = Math.max(19.2, Math.min(21.2, player.pos.z));
                     }
 
-                    const targetY = player.isCrouching ? -0.8 : 1.15;
+                    // Eye-level at firing step (1.15m) vs Ducked in trench (0.25m)
+                    const targetY = player.isCrouching ? 0.25 : 1.15;
                     player.pos.y += (targetY - player.pos.y) * 0.15;
                     updateCoverUI();
 
@@ -1442,14 +1566,13 @@
                     rifleGroup.position.lerp(targetGunPos, 0.2);
                 }
 
-                // Active Enemy AI Movement & Anatomical Running Animation
+                // Enemy AI Movement & Anatomical Running Animation
                 const time = clock.getElapsedTime();
                 for (let i = 0; i < enemies.length; i++) {
                     const e = enemies[i];
                     if (e.mesh.position.z < 18.2) {
                         e.mesh.position.z += e.speed * dt;
 
-                        // Running leg & arm oscillation
                         const runCycle = Math.sin(time * 6 + e.animSeed);
                         e.limbs.leftLeg.rotation.x = runCycle * 0.6;
                         e.limbs.rightLeg.rotation.x = -runCycle * 0.6;
@@ -1457,7 +1580,6 @@
                         e.limbs.rightArm.rotation.x = 0.9 + runCycle * 0.4;
                         e.mesh.position.y = Math.abs(runCycle) * 0.12;
                     } else {
-                        // Trench Overrun Breach Attack
                         player.health -= 12 * dt;
                         flashDamage();
                         updateHUD();
@@ -1478,7 +1600,6 @@
                         corpse.fallProgress += dt * 3.2;
                         const p = Math.min(1.0, corpse.fallProgress);
 
-                        // Collapse torso backward/sideways onto ground
                         corpse.mesh.rotation.x = p * (Math.PI / 2);
                         corpse.mesh.position.y = (1.0 - p) * 0.9 + 0.15;
                         corpse.limbs.leftLeg.rotation.x = p * 0.3;
@@ -1487,13 +1608,13 @@
                     }
                 }
 
-                // Update Blood Splatter Particles Physics
+                // Update Blood Splatter Particles
                 for (let i = bloodParticles.length - 1; i >= 0; i--) {
                     const bp = bloodParticles[i];
                     bp.life -= dt * 1.8;
                     const posAttr = bp.system.geometry.attributes.position;
                     for (let j = 0; j < bp.velocities.length; j++) {
-                        bp.velocities[j].y -= 9.8 * dt; // Gravity
+                        bp.velocities[j].y -= 9.8 * dt;
                         posAttr.setX(j, posAttr.getX(j) + bp.velocities[j].x * dt);
                         posAttr.setY(j, Math.max(0.02, posAttr.getY(j) + bp.velocities[j].y * dt));
                         posAttr.setZ(j, posAttr.getZ(j) + bp.velocities[j].z * dt);
@@ -1505,7 +1626,7 @@
                     }
                 }
 
-                // Wave transition trigger
+                // Next Wave Trigger
                 if (waveActive && enemies.length === 0) {
                     waveActive = false;
                     setTimeout(() => startWave(currentWave + 1), 2200);
